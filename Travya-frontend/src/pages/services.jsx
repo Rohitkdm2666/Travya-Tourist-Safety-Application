@@ -60,56 +60,56 @@ export default function ServicesHub() {
             <div className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-1 text-xs font-medium ring-1 ring-black/10 backdrop-blur">Explore</div>
             <h1 className="mt-3 text-3xl font-extrabold tracking-tight text-gray-900">Travel Services</h1>
             <p className="mt-2 text-sm text-gray-600">Quick access to hotels, cabs, food and grocery apps</p>
-          </header>
+        </header>
 
           <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-5">
             <button onClick={() => navigate('/services/hotels')} className="flex items-center gap-4 rounded-2xl bg-white p-6 ring-1 ring-black/10 shadow text-left">
               <div className="h-14 w-14 rounded-xl bg-sky-50 flex items-center justify-center text-2xl">🏨</div>
-              <div>
+            <div>
                 <div className="text-lg font-semibold text-gray-900">Your Hotels</div>
                 <div className="text-sm text-gray-600">Manage photos, address, booking</div>
-              </div>
-            </button>
+            </div>
+          </button>
             <button onClick={() => navigate('/services/events')} className="flex items-center gap-4 rounded-2xl bg-white p-6 ring-1 ring-black/10 shadow text-left">
               <div className="h-14 w-14 rounded-xl bg-rose-50 flex items-center justify-center text-2xl">📅</div>
-              <div>
+            <div>
                 <div className="text-lg font-semibold text-gray-900">Local Events</div>
                 <div className="text-sm text-gray-600">Add fairs, shows, activities</div>
-              </div>
-            </button>
-          </div>
+            </div>
+          </button>
+        </div>
 
-          <Section
-            title="Cabs"
-            emoji="🚕"
-            items={apps.cabs}
-            icons={{
-              Uber: 'https://upload.wikimedia.org/wikipedia/commons/c/cc/Uber_logo_2018.png',
-              Ola: 'https://upload.wikimedia.org/wikipedia/commons/3/3b/Ola_Cabs_Logo.png',
-              Rapido: 'https://upload.wikimedia.org/wikipedia/commons/2/2c/Rapido_logo.svg',
-            }}
-          />
-          <Section
-            title="Food Delivery"
-            emoji="🍽️"
-            items={apps.food}
-            icons={{
-              Zomato: 'https://upload.wikimedia.org/wikipedia/commons/7/75/Zomato_logo.png',
-              Swiggy: 'https://upload.wikimedia.org/wikipedia/commons/1/13/Swiggy_logo.png',
-            }}
-          />
-          <Section
-            title="Grocery"
-            emoji="🛒"
-            items={apps.grocery}
-            icons={{
-              Blinkit: 'https://upload.wikimedia.org/wikipedia/commons/7/7f/Blinkit_logo.svg',
-              Zepto: 'https://upload.wikimedia.org/wikipedia/commons/4/4f/Zepto_logo.png',
-            }}
-          />
+        <Section
+          title="Cabs"
+          emoji="🚕"
+          items={apps.cabs}
+          icons={{
+            Uber: 'https://upload.wikimedia.org/wikipedia/commons/c/cc/Uber_logo_2018.png',
+            Ola: 'https://upload.wikimedia.org/wikipedia/commons/3/3b/Ola_Cabs_Logo.png',
+            Rapido: 'https://upload.wikimedia.org/wikipedia/commons/2/2c/Rapido_logo.svg',
+          }}
+        />
+        <Section
+          title="Food Delivery"
+          emoji="🍽️"
+          items={apps.food}
+          icons={{
+            Zomato: 'https://upload.wikimedia.org/wikipedia/commons/7/75/Zomato_logo.png',
+            Swiggy: 'https://upload.wikimedia.org/wikipedia/commons/1/13/Swiggy_logo.png',
+          }}
+        />
+        <Section
+          title="Grocery"
+          emoji="🛒"
+          items={apps.grocery}
+          icons={{
+            Blinkit: 'https://upload.wikimedia.org/wikipedia/commons/7/7f/Blinkit_logo.svg',
+            Zepto: 'https://upload.wikimedia.org/wikipedia/commons/4/4f/Zepto_logo.png',
+          }}
+        />
 
           <div className="my-10" />
-        </div>
+      </div>
       </section>
     </main>
   );

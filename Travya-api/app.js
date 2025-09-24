@@ -4,11 +4,15 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { getWeather } from "./controllers/apis.js";
 import touristsRouter from "./routes/tourists.js";
+// import { createClient } from "@supabase/supabase-js";
 
 const app = express();
 dotenv.config();
 app.use(cors());
 app.use(express.json());
+// Auth middleware disabled until SUPABASE_URL and SUPABASE_ANON_KEY are provided in env
+// const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+// async function requireAuth(req, res, next) { /* ... */ }
 
 
 

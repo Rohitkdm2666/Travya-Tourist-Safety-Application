@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Navbar from './navbar'
+import { Connection, PublicKey, SystemProgram, Transaction } from '@solana/web3.js'
 
 export default function TouristRegistration({ onSuccess }) {
   const navigate = useNavigate()
@@ -14,6 +15,8 @@ export default function TouristRegistration({ onSuccess }) {
   const [travelItinerary, setTravelItinerary] = useState([{ location: '', date: '', activity: '' }])
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState('')
+  const [walletAddress, setWalletAddress] = useState('')
+  
 
   function updateField(e) {
     const { name, value } = e.target
@@ -33,11 +36,15 @@ export default function TouristRegistration({ onSuccess }) {
     setSubmitting(true)
     setMessage('')
     try {
+      if (!walletAddress) {
+        throw new Error('Connect your Solana wallet (Phantom) before registering')
+      }
       const data = new FormData()
       data.append('data', JSON.stringify({
         ...form,
         emergencyContacts,
-        travelItinerary
+        travelItinerary,
+        wallet_address: walletAddress
       }))
       if (photo) data.append('photo', photo)
       if (documentPhoto) data.append('documentPhoto', documentPhoto)
@@ -49,6 +56,28 @@ export default function TouristRegistration({ onSuccess }) {
       const json = await resp.json()
       if (!resp.ok) throw new Error(json?.error || 'Failed')
       setMessage('Tourist registered successfully!')
+      // Solana on-chain anchor via Memo program
+      try {
+        const provider = window?.solana || window?.phantom?.solana
+        if (provider?.publicKey) {
+          const memo = `travya:${json?.tourist?.id || 'registered'}`
+          const connection = new Connection('https://api.devnet.solana.com')
+          const fromPubkey = new PublicKey(provider.publicKey.toBase58())
+          const tx = new Transaction()
+          const ix = SystemProgram.transfer({ fromPubkey, toPubkey: fromPubkey, lamports: 0 })
+          tx.add(ix)
+          tx.feePayer = fromPubkey
+          tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash
+          const memoProg = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr')
+          const memoData = new TextEncoder().encode(memo)
+          tx.add({ keys: [], programId: memoProg, data: memoData })
+          const signed = await provider.signTransaction(tx)
+          const sig = await connection.sendRawTransaction(signed.serialize())
+          connection.confirmTransaction(sig, 'confirmed').catch(() => {})
+          setMessage(`Registered and anchored on-chain. Tx: ${sig}`)
+        }
+      } catch (_) {}
+
       if (typeof onSuccess === 'function') {
         onSuccess()
       } else {
@@ -76,6 +105,31 @@ export default function TouristRegistration({ onSuccess }) {
             <h2 className="text-2xl font-extrabold tracking-tight text-gray-900">Tourist Registration</h2>
             {message && <div className="mt-2 mb-4 text-sm text-gray-700">{message}</div>}
             <form onSubmit={handleSubmit} className="mt-4 space-y-8">
+        <section>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xl font-semibold text-gray-900">Blockchain ID</h3>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const provider = window?.solana || window?.phantom?.solana
+                  if (!provider) throw new Error('Phantom wallet not detected')
+                  const { publicKey } = await provider.connect({ onlyIfTrusted: false })
+                  const addr = publicKey?.toBase58?.()
+                  if (!addr) throw new Error('Wallet did not provide a public key')
+                  setWalletAddress(addr)
+                  setMessage('Phantom connected')
+                } catch (err) {
+                  setMessage('Wallet connect failed: ' + (err?.message || 'Unsupported provider'))
+                }
+              }}
+              className="inline-flex items-center rounded-lg bg-gray-900 px-4 py-2 text-white shadow hover:opacity-90"
+            >
+              {walletAddress ? 'Wallet Connected' : 'Connect Phantom'}
+            </button>
+          </div>
+          <div className="mt-2 text-xs text-gray-600">{walletAddress ? walletAddress : 'Connect Phantom (Solana). Your public key will be used as Blockchain ID.'}</div>
+        </section>
         <section>
           <h3 className="text-xl font-semibold text-gray-900">Personal Information</h3>
           <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">

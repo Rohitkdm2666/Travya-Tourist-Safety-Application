@@ -72,6 +72,7 @@ export default function PoliceDashboard() {
             id: t.id,
             name: t.fullname || t.name || 'Tourist',
             phone: t.phoneno || t.phone || '',
+            wallet: t.wallet_address || '',
             lat,
             lng,
             zone,
@@ -263,6 +264,7 @@ export default function PoliceDashboard() {
                   <div>
                     <div style={styles.cardTitle}>{t.name}</div>
                     <div style={styles.cardSub}>ID: {t.id} • {t.phone}</div>
+                    {t.wallet && <div style={{ ...styles.cardSub, marginTop: 2 }}>Wallet: {t.wallet.slice(0, 6)}...{t.wallet.slice(-4)}</div>}
                   </div>
                 </div>
                 <div style={styles.coordsRow}>

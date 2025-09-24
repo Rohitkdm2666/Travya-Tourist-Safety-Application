@@ -24,7 +24,8 @@ const touristSchema = z.object({
     checkInDate: z.string().min(1),
     checkOutDate: z.string().min(1),
     emergencyContacts: z.array(emergencyContactSchema).min(1),
-    travelItinerary: z.array(itineraryItemSchema).min(1)
+    travelItinerary: z.array(itineraryItemSchema).min(1),
+    wallet_address: z.string().min(20).optional()
 });
 
 function bufferToFile(buffer, filename, mimetype) {
@@ -85,7 +86,8 @@ export async function registerTourist(req, res) {
             checkindate: String(parsed.data.checkInDate).slice(0, 10),
             checkoutdate: String(parsed.data.checkOutDate).slice(0, 10),
             emergencycontacts: parsed.data.emergencyContacts,
-            travelitinerary: parsed.data.travelItinerary
+            travelitinerary: parsed.data.travelItinerary,
+            wallet_address: parsed.data.wallet_address || null
         };
 
         const { data, error } = await supabase
@@ -108,7 +110,7 @@ export async function listTourists(req, res) {
     try {
         const { data, error } = await supabase
             .from('tourists')
-            .select('id, created_at, fullname, email, phoneno, nationality, checkindate, checkoutdate, photo')
+            .select('id, created_at, fullname, email, phoneno, nationality, checkindate, checkoutdate, photo, wallet_address')
             .order('created_at', { ascending: false });
         if (error) return res.status(500).json({ error: 'Failed to fetch tourists', details: error.message });
         return res.json({ tourists: data });

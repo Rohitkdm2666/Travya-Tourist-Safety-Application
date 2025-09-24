@@ -109,7 +109,7 @@ export default function HomeScreen() {
             <h1 style={styles.greeting}>Welcome back!</h1>
             <p style={styles.subtitle}>Plan smart. Travel safer.</p>
           </div>
-          <button style={styles.weatherBtn} onClick={() => window.alert('Weather: Coming soon')} aria-label="Open Weather">
+          <button style={styles.weatherBtn} onClick={() => window.location.assign('/weather')} aria-label="Open Weather">
             ☁️
           </button>
         </div>

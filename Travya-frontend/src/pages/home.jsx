@@ -3,6 +3,29 @@ import Navbar from './navbar'
 
 export default function Home() {
   const [showDemo, setShowDemo] = useState(false)
+  const [wx, setWx] = useState({ loading: true, error: '', temp: null, code: null })
+
+  useEffect(() => {
+    let cancelled = false
+    if (!('geolocation' in navigator)) {
+      setWx({ loading: false, error: 'No geolocation', temp: null, code: null })
+      return
+    }
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      try {
+        const { latitude, longitude } = pos.coords
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code,is_day`;
+        const resp = await fetch(url)
+        const json = await resp.json()
+        if (!cancelled) setWx({ loading: false, error: '', temp: json?.current?.temperature_2m ?? null, code: json?.current?.weather_code ?? null })
+      } catch (_) {
+        if (!cancelled) setWx({ loading: false, error: 'Weather unavailable', temp: null, code: null })
+      }
+    }, () => {
+      setWx({ loading: false, error: 'Location denied', temp: null, code: null })
+    }, { timeout: 8000 })
+    return () => { cancelled = true }
+  }, [])
 
   // Close on Escape key
   useEffect(() => {
@@ -29,9 +52,7 @@ export default function Home() {
           {/* 1. Hero Section */}
           <section className="grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full bg:white/80 bg-white/80 px-4 py-1 text-xs font-medium ring-1 ring-black/10 backdrop-blur">
-                Travel Safe. Explore Free.
-              </div>
+              
               <h1 className="mt-4 text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">
                 Travya — Your Trusted Companion for <span className="text-sky-600">Tourist Safety</span>
               </h1>
@@ -44,6 +65,17 @@ export default function Home() {
                 <a href="#" className="h-12 w-36 rounded-lg bg-black text-white flex items-center justify-center shadow">Google Play</a>
                 <a href="#" className="h-12 w-36 rounded-lg bg-gray-900 text-white flex items-center justify-center shadow">App Store</a>
                 <a href="#sos-demo" className="h-12 rounded-lg bg-red-500 px-4 text-white flex items-center justify-center shadow hover:opacity-95">Try SOS Demo</a>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-full bg:white/80 bg-white/80 px-4 py-1 text-xs font-medium ring-1 ring-black/10 backdrop-blur">
+                Travel Safe. Explore Free.
+              </div>
+              {/* Compact Weather Widget */}
+              <div className="mt-3 inline-flex items-center gap-3 rounded-xl bg-white/90 px-3 py-2 ring-1 ring-black/10 shadow">
+                <span>☁️</span>
+                <span className="text-sm text-gray-700">
+                  {wx.loading ? 'Loading weather…' : (wx.error ? wx.error : `${wx.temp}°C near you`)}
+                </span>
+                <a href="/weather" className="text-xs text-sky-700 hover:opacity-80">details</a>
               </div>
             </div>
 

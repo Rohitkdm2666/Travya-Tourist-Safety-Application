@@ -23,14 +23,7 @@ const theme = {
   },
 };
 
-// Dummy tourist data near Shimla
-const initialTourists = [
-  { id: 'T-1001', name: 'Aarav Sharma', phone: '+91 98xxxxxx01', lat: 31.1058, lng: 77.1739, zone: 'safe' },
-  { id: 'T-1002', name: 'Isha Gupta', phone: '+91 98xxxxxx02', lat: 31.1052, lng: 77.1721, zone: 'safe' },
-  { id: 'T-1003', name: 'Rohan Mehta', phone: '+91 98xxxxxx03', lat: 31.1039, lng: 77.1703, zone: 'danger' },
-  { id: 'T-1004', name: 'Sara Khan', phone: '+91 98xxxxxx04', lat: 31.1067, lng: 77.1752, zone: 'safe' },
-  { id: 'T-1005', name: 'Vikram Rao', phone: '+91 98xxxxxx05', lat: 31.1041, lng: 77.1764, zone: 'danger' },
-];
+// Bounds around Shimla for mock projection
 
 export default function PoliceDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -39,6 +32,8 @@ export default function PoliceDashboard() {
   const mapRef = useRef(null);
   const mapSectionRef = useRef(null);
   const [mapSize, setMapSize] = useState({ width: 0, height: 0 });
+  const [tourists, setTourists] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [sosEvents, setSosEvents] = useState(() => loadEvents());
   const [elapsed, setElapsed] = useState('00:00');
   const [showEfirs, setShowEfirs] = useState(false);
@@ -55,7 +50,42 @@ export default function PoliceDashboard() {
     maxLng: 77.1785,
   }), []);
 
-  const tourists = initialTourists;
+  // Fetch tourists dynamically from backend and assign pseudo coordinates within bounds
+  useEffect(() => {
+    async function load() {
+      try {
+        setLoading(true);
+        const resp = await fetch('http://localhost:5000/api/tourists');
+        const json = await resp.json();
+        const list = Array.isArray(json.tourists) ? json.tourists : [];
+        // Derive stable positions based on hash of id
+        const withPos = list.map((t, index) => {
+          const idStr = String(t.id);
+          let hash = 0;
+          for (let i = 0; i < idStr.length; i++) hash = (hash * 31 + idStr.charCodeAt(i)) >>> 0;
+          const fx = (hash % 1000) / 1000; // 0..1
+          const fy = ((hash >> 10) % 1000) / 1000; // 0..1
+          const lat = bounds.minLat + fy * (bounds.maxLat - bounds.minLat);
+          const lng = bounds.minLng + fx * (bounds.maxLng - bounds.minLng);
+          const zone = ((hash >> 20) % 3) === 0 ? 'danger' : 'safe';
+          return {
+            id: t.id,
+            name: t.fullname || t.name || 'Tourist',
+            phone: t.phoneno || t.phone || '',
+            lat,
+            lng,
+            zone,
+          };
+        });
+        setTourists(withPos);
+      } catch (_) {
+        setTourists([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [bounds]);
 
   const projectToMap = (lat, lng, width, height) => {
     // Simple linear projection within bounds → x,y in px
@@ -218,7 +248,7 @@ export default function PoliceDashboard() {
 
         {activeTab === 'overview' && (
           <div style={styles.grid}>
-            {tourists.map((t) => (
+            {(loading ? Array.from({ length: 4 }).map((_, i) => ({ id: 's'+i, name: 'Loading...', phone: '', lat: 31.104, lng: 77.173, zone: 'safe', skeleton: true })) : tourists).map((t) => (
               <div
                 key={t.id}
                 ref={(el) => (cardsRef.current[t.id] = el)}
@@ -229,7 +259,7 @@ export default function PoliceDashboard() {
                 onClick={() => onCardClick(t.id)}
               >
                 <div style={styles.cardHeader}>
-                  <div style={{ ...styles.dot, background: t.zone === 'danger' ? theme.colors.error : theme.colors.success }} />
+                  <div style={{ ...styles.dot, background: t.skeleton ? '#E5E7EB' : (t.zone === 'danger' ? theme.colors.error : theme.colors.success) }} />
                   <div>
                     <div style={styles.cardTitle}>{t.name}</div>
                     <div style={styles.cardSub}>ID: {t.id} • {t.phone}</div>
@@ -238,17 +268,17 @@ export default function PoliceDashboard() {
                 <div style={styles.coordsRow}>
                   <div>
                     <div style={styles.coordLabel}>Latitude</div>
-                    <div style={styles.coordValue}>{t.lat.toFixed(6)}°</div>
+                    <div style={styles.coordValue}>{Number(t.lat).toFixed(6)}°</div>
                   </div>
                   <div>
                     <div style={styles.coordLabel}>Longitude</div>
-                    <div style={styles.coordValue}>{t.lng.toFixed(6)}°</div>
+                    <div style={styles.coordValue}>{Number(t.lng).toFixed(6)}°</div>
                   </div>
                 </div>
-                <div style={styles.zonePill(t.zone)}>{t.zone === 'danger' ? 'Protected/Restricted Zone' : 'Safe Zone'}</div>
+                {!t.skeleton && <div style={styles.zonePill(t.zone)}>{t.zone === 'danger' ? 'Protected/Restricted Zone' : 'Safe Zone'}</div>}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
-                  <div style={{ fontSize: 12, color: theme.colors.textSecondary }}>📍 {t.lat.toFixed(5)}, {t.lng.toFixed(5)}</div>
-                  <a href={`https://www.google.com/maps?q=${t.lat},${t.lng}`} target="_blank" rel="noreferrer" style={styles.linkBtn}>Open in Maps</a>
+                  <div style={{ fontSize: 12, color: theme.colors.textSecondary }}>📍 {Number(t.lat).toFixed(5)}, {Number(t.lng).toFixed(5)}</div>
+                  {!t.skeleton && <a href={`https://www.google.com/maps?q=${t.lat},${t.lng}`} target="_blank" rel="noreferrer" style={styles.linkBtn}>Open in Maps</a>}
                 </div>
               </div>
             ))}

@@ -8,6 +8,8 @@ import EFIRs from './pages/efirs.jsx'
 import AIChat from './pages/aichat.jsx'
 import Profile from './pages/profile.jsx'
 import PublicDashboard from './pages/publicdashboard.jsx'
+import TouristRegistration from './pages/TouristRegistration.jsx'
+import WeatherPage from './pages/weather.jsx'
 
 
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
@@ -22,7 +24,9 @@ const router = createBrowserRouter([
   { path: '/services', element: <ServicesHub/> },
   { path: '/aichat', element: <AIChat/> },
   { path: '/profile', element: <Profile/> },
-  {path:"/public",element:<PublicDashboard/>}
+  {path:"/public",element:<PublicDashboard/>},
+  { path: '/register', element: <TouristRegistration/> },
+  { path: '/weather', element: <WeatherPage/> }
 ])
 
 

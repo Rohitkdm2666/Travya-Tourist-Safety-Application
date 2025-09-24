@@ -4,6 +4,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { getWeather } from "./controllers/apis.js";
 import touristsRouter from "./routes/tourists.js";
+import reportsRouter from "./routes/reports.js";
 
 const app = express();
 dotenv.config();
@@ -16,5 +17,6 @@ app.use(express.json());
 // Route to get weather + Gemini explanation
 app.get("/weather/coords", getWeather);
 app.use("/api/tourists", touristsRouter);
+app.use("/api/reports", reportsRouter);
 
 app.listen(5000, () => console.log("Server running on port 5000"));

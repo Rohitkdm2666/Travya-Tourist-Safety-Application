@@ -104,7 +104,7 @@ export default function ServicesHub() {
             items={apps.grocery}
             icons={{
               Blinkit: 'https://upload.wikimedia.org/wikipedia/commons/7/7f/Blinkit_logo.svg',
-              Zepto: 'https://upload.wikimedia.org/wikipedia/commons/4/4f/Zepto_logo.png',
+      Zepto: 'https://upload.wikimedia.org/wikipedia/commons/0/0c/Zepto_logo.svg',
             }}
           />
 

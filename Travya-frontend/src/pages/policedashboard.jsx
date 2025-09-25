@@ -37,6 +37,9 @@ export default function PoliceDashboard() {
   const [sosEvents, setSosEvents] = useState(() => loadEvents());
   const [elapsed, setElapsed] = useState('00:00');
   const [showEfirs, setShowEfirs] = useState(false);
+  const [passportQuery, setPassportQuery] = useState('');
+  const [lookup, setLookup] = useState({ loading: false, error: '', data: null });
+  const asBool = (v) => v === true || v === 'true' || v === 't' || v === 1 || v === '1';
   const historyEvents = [
     { id: 'H-0901', name: 'Expired SOS - Neeraj', phone: '+91 98xxxxxx21', lat: 31.1049, lng: 77.1712, ts: Date.now() - 1000 * 60 * 60 * 5 },
     { id: 'H-0902', name: 'Expired SOS - Mira', phone: '+91 98xxxxxx22', lat: 31.1061, lng: 77.1744, ts: Date.now() - 1000 * 60 * 60 * 26 },
@@ -52,19 +55,16 @@ export default function PoliceDashboard() {
 
   // Fetch tourists dynamically from backend and assign pseudo coordinates within bounds
   useEffect(() => {
-    async function load() {
+    async function fetchList() {
       try {
         setLoading(true);
         const resp = await fetch('http://localhost:5000/api/tourists');
         const json = await resp.json();
         const list = Array.isArray(json.tourists) ? json.tourists : [];
-        // Derive stable positions based on hash of id
-        const withPos = list.map((t, index) => {
+        const withPos = list.map((t) => {
           const idStr = String(t.id);
-          let hash = 0;
-          for (let i = 0; i < idStr.length; i++) hash = (hash * 31 + idStr.charCodeAt(i)) >>> 0;
-          const fx = (hash % 1000) / 1000; // 0..1
-          const fy = ((hash >> 10) % 1000) / 1000; // 0..1
+          let hash = 0; for (let i = 0; i < idStr.length; i++) hash = (hash * 31 + idStr.charCodeAt(i)) >>> 0;
+          const fx = (hash % 1000) / 1000; const fy = ((hash >> 10) % 1000) / 1000;
           const lat = bounds.minLat + fy * (bounds.maxLat - bounds.minLat);
           const lng = bounds.minLng + fx * (bounds.maxLng - bounds.minLng);
           const zone = ((hash >> 20) % 3) === 0 ? 'danger' : 'safe';
@@ -76,6 +76,8 @@ export default function PoliceDashboard() {
             lat,
             lng,
             zone,
+            verified: asBool(t.verified),
+            documentno: t.documentno,
           };
         });
         setTourists(withPos);
@@ -85,8 +87,31 @@ export default function PoliceDashboard() {
         setLoading(false);
       }
     }
-    load();
+    fetchList();
   }, [bounds]);
+
+  // Refetch when switching to Verify to ensure latest unverified cards show
+  useEffect(() => {
+    if (activeTab !== 'verify') return;
+    (async () => {
+      try {
+        setLoading(true);
+        const resp = await fetch('http://localhost:5000/api/tourists');
+        const json = await resp.json();
+        const list = Array.isArray(json.tourists) ? json.tourists : [];
+        const mapped = list.map((t) => {
+          const idStr = String(t.id);
+          let hash = 0; for (let i = 0; i < idStr.length; i++) hash = (hash * 31 + idStr.charCodeAt(i)) >>> 0;
+          const fx = (hash % 1000) / 1000; const fy = ((hash >> 10) % 1000) / 1000;
+          const lat = bounds.minLat + fy * (bounds.maxLat - bounds.minLat);
+          const lng = bounds.minLng + fx * (bounds.maxLng - bounds.minLng);
+          const zone = ((hash >> 20) % 3) === 0 ? 'danger' : 'safe';
+          return { id: t.id, name: t.fullname || 'Tourist', phone: t.phoneno || '', lat, lng, zone, verified: asBool(t.verified), documentno: t.documentno };
+        });
+        setTourists(mapped);
+      } finally { setLoading(false); }
+    })();
+  }, [activeTab, bounds]);
 
   const projectToMap = (lat, lng, width, height) => {
     // Simple linear projection within bounds → x,y in px
@@ -182,13 +207,14 @@ export default function PoliceDashboard() {
               <button style={{ ...styles.tabBtn, ...(activeTab === 'overview' ? styles.tabActive : {}) }} onClick={() => setActiveTab('overview')}>Overview</button>
               <button style={{ ...styles.tabBtn, ...(activeTab === 'map' ? styles.tabActive : {}) }} onClick={() => setActiveTab('map')}>Map</button>
               <button style={{ ...styles.tabBtn, ...(activeTab === 'history' ? styles.tabActive : {}) }} onClick={() => setActiveTab('history')}>History</button>
+              <button style={{ ...styles.tabBtn, ...(activeTab === 'verify' ? styles.tabActive : {}) }} onClick={() => setActiveTab('verify')}>Verify</button>
               <a href="/report" style={{ ...styles.tabBtn, textDecoration: 'none' }}>Report</a>
             </div>
           </div>
         </header>
 
-        {/* Live SOS banner + list */}
-        {sosEvents.length > 0 && (
+        {/* Live SOS banner + list (hidden in Verify tab) */}
+        {activeTab !== 'verify' && sosEvents.length > 0 && (
           <div style={styles.sosWrap}>
             <div style={styles.sosBanner}>
               <div style={styles.sosDot} />
@@ -213,7 +239,8 @@ export default function PoliceDashboard() {
           </div>
         )}
 
-        {/* Priority SOS card (separate UI with stopwatch) */}
+        {/* Priority SOS card (hidden in Verify tab) */}
+        {activeTab !== 'verify' && (
         <div style={styles.priorityCard}>
           <div style={styles.priorityHeader}>
             <div style={styles.priorityBadge}>Priority • SOS</div>
@@ -245,12 +272,13 @@ export default function PoliceDashboard() {
             </div>
           ); })()}
         </div>
+        )}
 
         {/* eFIRs quick access row (separate from tabs) moved below cards */}
 
         {activeTab === 'overview' && (
           <div style={styles.grid}>
-            {(loading ? Array.from({ length: 4 }).map((_, i) => ({ id: 's'+i, name: 'Loading...', phone: '', lat: 31.104, lng: 77.173, zone: 'safe', skeleton: true })) : tourists).map((t) => (
+            {(loading ? Array.from({ length: 4 }).map((_, i) => ({ id: 's'+i, name: 'Loading...', phone: '', lat: 31.104, lng: 77.173, zone: 'safe', skeleton: true })) : tourists.filter(t => t.verified)).map((t) => (
               <div
                 key={t.id}
                 ref={(el) => (cardsRef.current[t.id] = el)}
@@ -288,10 +316,160 @@ export default function PoliceDashboard() {
           </div>
         )}
 
+        {activeTab === 'verify' && (
+          <div style={{ ...styles.card, marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'end', gap: 8, flexWrap: 'wrap' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>Verify Tourist by Passport</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input value={passportQuery} onChange={(e) => setPassportQuery(e.target.value)} placeholder="Enter Passport / Document No" style={styles.input} />
+                  <button style={styles.primaryBtn} onClick={async () => {
+                    try {
+                      setLookup({ loading: true, error: '', data: null });
+                      const resp = await fetch(`http://localhost:5000/api/tourists/passport/${encodeURIComponent(passportQuery)}`);
+                      const json = await resp.json();
+                      if (!resp.ok) throw new Error(json.error || 'Lookup failed');
+                      setLookup({ loading: false, error: '', data: json.tourist });
+                    } catch (e) {
+                      setLookup({ loading: false, error: e.message, data: null });
+                    }
+                  }}>Search</button>
+                  <button style={styles.primaryBtn} onClick={async () => {
+                    try {
+                      setLoading(true);
+                      const resp = await fetch('http://localhost:5000/api/tourists');
+                      const json = await resp.json();
+                      const list = Array.isArray(json.tourists) ? json.tourists : [];
+                      const mapped = list.map((t) => {
+                        const idStr = String(t.id);
+                        let hash = 0; for (let i = 0; i < idStr.length; i++) hash = (hash * 31 + idStr.charCodeAt(i)) >>> 0;
+                        const fx = (hash % 1000) / 1000; const fy = ((hash >> 10) % 1000) / 1000;
+                        const lat = bounds.minLat + fy * (bounds.maxLat - bounds.minLat);
+                        const lng = bounds.minLng + fx * (bounds.maxLng - bounds.minLng);
+                        const zone = ((hash >> 20) % 3) === 0 ? 'danger' : 'safe';
+                        return { id: t.id, name: t.fullname || 'Tourist', phone: t.phoneno || '', lat, lng, zone, verified: !!t.verified, documentno: t.documentno };
+                      });
+                      setTourists(mapped);
+                    } finally { setLoading(false); }
+                  }}>Refresh</button>
+                </div>
+              </div>
+              {lookup.loading && <div>Searching…</div>}
+              {lookup.error && <div style={{ color: theme.colors.error }}>{lookup.error}</div>}
+            </div>
+
+            {lookup.data && (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ ...styles.card, boxShadow: 'none', border: '1px solid #E6EAF2' }}>
+                  <div style={styles.cardHeader}>
+                    <div style={{ ...styles.dot, background: lookup.data.verified ? theme.colors.success : theme.colors.warning }} />
+                    <div>
+                      <div style={styles.cardTitle}>{lookup.data.fullname}</div>
+                      <div style={styles.cardSub}>Passport: {lookup.data.documentno} • {lookup.data.nationality}</div>
+                    </div>
+                  </div>
+                  <div style={styles.coordsRow}>
+                    <div>
+                      <div style={styles.coordLabel}>Email</div>
+                      <div style={styles.coordValue}>{lookup.data.email}</div>
+                    </div>
+                    <div>
+                      <div style={styles.coordLabel}>Phone</div>
+                      <div style={styles.coordValue}>{lookup.data.phoneno}</div>
+                    </div>
+                    <div>
+                      <div style={styles.coordLabel}>Check-in</div>
+                      <div style={styles.coordValue}>{String(lookup.data.checkindate).slice(0,10)}</div>
+                    </div>
+                    <div>
+                      <div style={styles.coordLabel}>Check-out</div>
+                      <div style={styles.coordValue}>{String(lookup.data.checkoutdate).slice(0,10)}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+                    <div style={styles.zonePill(lookup.data.verified ? 'safe' : 'danger')}>{lookup.data.verified ? 'Verified' : 'Not Verified'}</div>
+                    {!lookup.data.verified && (
+                      <button style={styles.glassBtn} onClick={async () => {
+                        try {
+                          const resp = await fetch('http://localhost:5000/api/tourists/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: lookup.data.id, documentNo: lookup.data.documentno }) });
+                          const json = await resp.json();
+                          if (!resp.ok) throw new Error(json.error || 'Verify failed');
+                          setLookup((prev) => prev.data ? { loading: false, error: '', data: { ...prev.data, verified: true } } : prev);
+                          // Refresh list to move card to Overview
+                          try {
+                            setLoading(true);
+                            const resp2 = await fetch('http://localhost:5000/api/tourists');
+                            const json2 = await resp2.json();
+                            const list2 = Array.isArray(json2.tourists) ? json2.tourists : [];
+                            const mapped = list2.map((t) => {
+                              const idStr = String(t.id);
+                              let hash = 0; for (let i = 0; i < idStr.length; i++) hash = (hash * 31 + idStr.charCodeAt(i)) >>> 0;
+                              const fx = (hash % 1000) / 1000; const fy = ((hash >> 10) % 1000) / 1000;
+                              const lat = bounds.minLat + fy * (bounds.maxLat - bounds.minLat);
+                              const lng = bounds.minLng + fx * (bounds.maxLng - bounds.minLng);
+                              const zone = ((hash >> 20) % 3) === 0 ? 'danger' : 'safe';
+                              return { id: t.id, name: t.fullname || 'Tourist', phone: t.phoneno || '', lat, lng, zone, verified: !!t.verified, documentno: t.documentno };
+                            });
+                            setTourists(mapped);
+                          } finally { setLoading(false); }
+                        } catch (e) {
+                          alert(e.message);
+                        }
+                      }}>Verify Tourist</button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'verify' && (
+          <div style={{ marginTop: 12 }}>
+            <div style={styles.grid}>
+              {tourists.filter(t => !t.verified).map((t) => (
+                <div key={t.id} style={styles.card}>
+                  <div style={styles.cardHeader}>
+                    <div style={{ ...styles.dot, background: theme.colors.warning }} />
+                    <div>
+                      <div style={styles.cardTitle}>{t.name}</div>
+                      <div style={styles.cardSub}>Passport: {t.documentno || '—'} • Phone: {t.phone || '—'}</div>
+                    </div>
+                  </div>
+                  <div style={styles.coordsRow}>
+                    <div>
+                      <div style={styles.coordLabel}>Latitude</div>
+                      <div style={styles.coordValue}>{Number(t.lat).toFixed(6)}°</div>
+                    </div>
+                    <div>
+                      <div style={styles.coordLabel}>Longitude</div>
+                      <div style={styles.coordValue}>{Number(t.lng).toFixed(6)}°</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+                    <div style={styles.zonePill('danger')}>Not Verified</div>
+                    <button style={styles.glassBtn} onClick={async () => {
+                      try {
+                        const resp = await fetch('http://localhost:5000/api/tourists/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: t.id, documentNo: t.documentno }) });
+                        const json = await resp.json();
+                        if (!resp.ok) throw new Error(json.details || json.error || 'Verify failed');
+                        // update state optimistically
+                        setTourists((prev) => prev.map((x) => x.id === t.id ? { ...x, verified: true } : x));
+                      } catch (e) { alert(e.message); }
+                    }}>Verify</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab !== 'verify' && (
         <div style={styles.efirBar}>
           <div style={styles.efirInfo}>Auto eFIRs due to inactivity</div>
           <button style={styles.efirBtn} onClick={() => setShowEfirs((v) => !v)}>{showEfirs ? 'Hide eFIRs' : 'View eFIRs'}</button>
         </div>
+        )}
 
         {activeTab === 'map' && (
           <div ref={mapSectionRef}>
@@ -491,6 +669,7 @@ const styles = {
   coordValue: { fontWeight: 700, marginTop: 2 },
   zonePill: (zone) => ({ marginTop: 12, display: 'inline-block', padding: '6px 10px', borderRadius: 999, background: zone === 'danger' ? 'rgba(239,68,68,0.12)' : 'rgba(22,163,74,0.12)', color: zone === 'danger' ? theme.colors.error : theme.colors.success, fontSize: 12, fontWeight: 600 }),
   statusPill: (status) => ({ padding: '6px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700, color: status === 'closed' ? theme.colors.success : '#B45309', background: status === 'closed' ? 'rgba(22,163,74,0.12)' : 'rgba(245,158,11,0.12)', border: `1px solid ${status === 'closed' ? '#86efac' : '#fde68a'}` }),
+  glassBtn: { padding: '10px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.55)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.7)', boxShadow: '0 6px 18px rgba(37,99,235,0.15)', color: theme.colors.text, cursor: 'pointer' },
 
   mapCard: { background: '#fff', border: '1px solid #E6EAF2', borderRadius: 16, overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.06)' },
   mapHeader: { padding: theme.spacing.md, borderBottom: '1px solid #E6EAF2', fontWeight: 700 },

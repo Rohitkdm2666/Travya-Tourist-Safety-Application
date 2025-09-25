@@ -96,21 +96,29 @@ export async function registerTourist(req, res) {
             checkindate: String(parsed.data.checkInDate).slice(0, 10),
             checkoutdate: String(parsed.data.checkOutDate).slice(0, 10),
             emergencycontacts: parsed.data.emergencyContacts,
-            travelitinerary: parsed.data.travelItinerary,
-            wallet_address: parsed.data.wallet_address || null
+            travelitinerary: parsed.data.travelItinerary
         };
 
-        const { data, error } = await supabase
+        let insertRes = await supabase
             .from("tourists")
             .insert([safeRow])
             .select()
             .single();
-        if (error) {
-            console.error("Supabase insert error:", error);
-            return res.status(500).json({ error: "Database insert failed", details: error });
+        if (insertRes.error && String(insertRes.error.message || '').includes("verified")) {
+            // Retry without 'verified' column if schema not updated yet
+            const { verified, ...noVerified } = safeRow;
+            insertRes = await supabase
+                .from("tourists")
+                .insert([noVerified])
+                .select()
+                .single();
+        }
+        if (insertRes.error) {
+            console.error("Supabase insert error:", insertRes.error);
+            return res.status(500).json({ error: "Database insert failed", details: insertRes.error });
         }
 
-        return res.status(201).json({ tourist: data });
+        return res.status(201).json({ tourist: insertRes.data });
     } catch (err) {
         return res.status(500).json({ error: "Unexpected error", details: err.message });
     }
@@ -118,11 +126,24 @@ export async function registerTourist(req, res) {
 
 export async function listTourists(req, res) {
     try {
-        const { data, error } = await supabase
+        let query = supabase
             .from('tourists')
-            .select('id, created_at, fullname, email, phoneno, nationality, checkindate, checkoutdate, photo, wallet_address')
+            .select('id, created_at, fullname, email, phoneno, nationality, checkindate, checkoutdate, photo')
             .order('created_at', { ascending: false });
-        if (error) return res.status(500).json({ error: 'Failed to fetch tourists', details: error.message });
+        let { data, error } = await query;
+        if (error) {
+            // Fallback if 'verified' column doesn't exist yet
+            if ((error.message || '').toLowerCase().includes('column') && (error.message || '').toLowerCase().includes('verified')) {
+                const fallback = await supabase
+                    .from('tourists')
+                    .select('id, created_at, fullname, email, phoneno, nationality, checkindate, checkoutdate, photo, documentno')
+                    .order('created_at', { ascending: false });
+                if (fallback.error) return res.status(500).json({ error: 'Failed to fetch tourists', details: fallback.error.message });
+                const withFlag = (fallback.data || []).map(t => ({ ...t, verified: false }));
+                return res.json({ tourists: withFlag });
+            }
+            return res.status(500).json({ error: 'Failed to fetch tourists', details: error.message });
+        }
         return res.json({ tourists: data });
     } catch (err) {
         return res.status(500).json({ error: 'Unexpected error', details: err.message });
@@ -139,6 +160,109 @@ export async function getTouristById(req, res) {
             .single();
         if (error) return res.status(404).json({ error: 'Tourist not found', details: error.message });
         return res.json({ tourist: data });
+    } catch (err) {
+        return res.status(500).json({ error: 'Unexpected error', details: err.message });
+    }
+}
+
+export async function getTouristByPassport(req, res) {
+    try {
+        const documentNo = String(req.params.documentNo || '').trim();
+        let { data, error } = await supabase
+            .from('tourists')
+            .select('id, created_at, fullname, email, phoneno, nationality, photo, documenttype, documentno, registrationpoint, checkindate, checkoutdate, verified')
+            .ilike('documentno', documentNo)
+            .maybeSingle();
+        // Fallback to case-sensitive equality if ilike not supported or errored
+        if (error) {
+            const fb = await supabase
+                .from('tourists')
+                .select('id, created_at, fullname, email, phoneno, nationality, photo, documenttype, documentno, registrationpoint, checkindate, checkoutdate, verified')
+                .eq('documentno', documentNo)
+                .maybeSingle();
+            if (fb.error) {
+                // Final fallback: batch fetch and normalize for comparison (ignoring spaces/dashes, case)
+                const batch = await supabase
+                    .from('tourists')
+                    .select('id, created_at, fullname, email, phoneno, nationality, photo, documenttype, documentno, registrationpoint, checkindate, checkoutdate, verified')
+                    .limit(500);
+                if (batch.error) return res.status(500).json({ error: 'Lookup failed', details: batch.error.message });
+                const norm = (s) => String(s || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+                const target = norm(documentNo);
+                const found = (batch.data || []).find(r => norm(r.documentno) === target);
+                if (!found) return res.status(404).json({ error: 'No tourist found for this passport' });
+                data = found;
+            } else {
+                data = fb.data;
+            }
+        }
+        if (!data) return res.status(404).json({ error: 'No tourist found for this passport' });
+        return res.json({ tourist: data });
+    } catch (err) {
+        return res.status(500).json({ error: 'Unexpected error', details: err.message });
+    }
+}
+
+export async function verifyTouristByPassport(req, res) {
+    try {
+        const { id: rawId, documentNo: raw } = req.body || {};
+        const idFromBody = rawId !== undefined && rawId !== null ? String(rawId) : null;
+        const documentNo = String(raw || '').trim();
+        if (!idFromBody && !documentNo) return res.status(400).json({ error: 'id or documentNo is required' });
+
+        // Prefer updating by id if provided
+        if (idFromBody) {
+            const upd = await supabase
+                .from('tourists')
+                .update({ verified: 'true' })
+                .eq('id', idFromBody)
+                .select('id, fullname, documentno, verified')
+                .single();
+            if (upd.error) return res.status(500).json({ error: 'Verification failed', details: upd.error.message });
+            return res.json({ tourist: upd.data });
+        }
+
+        // Otherwise try to find by document number (robust matching)
+        let find = await supabase
+            .from('tourists')
+            .select('id, fullname, documentno, verified')
+            .ilike('documentno', documentNo)
+            .limit(1)
+            .maybeSingle();
+        if (find.error) {
+            // Fallback to case-sensitive equality
+            const fb = await supabase
+                .from('tourists')
+                .select('id, fullname, documentno, verified')
+                .eq('documentno', documentNo)
+                .limit(1)
+                .maybeSingle();
+            if (fb.error) {
+                // Final fallback: batch and normalize
+                const batch = await supabase
+                    .from('tourists')
+                    .select('id, fullname, documentno, verified')
+                    .limit(500);
+                if (batch.error) return res.status(500).json({ error: 'Lookup failed', details: batch.error.message });
+                const norm = (s) => String(s || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+                const target = norm(documentNo);
+                const targetRow = (batch.data || []).find(r => norm(r.documentno) === target);
+                if (!targetRow) return res.status(404).json({ error: 'No tourist found for this passport' });
+                find = { data: targetRow };
+            } else {
+                find = fb;
+            }
+        }
+        if (!find.data) return res.status(404).json({ error: 'No tourist found for this passport' });
+        const id = find.data.id;
+        const upd = await supabase
+            .from('tourists')
+            .update({ verified: 'true' })
+            .eq('id', id)
+            .select('id, fullname, documentno, verified')
+            .single();
+        if (upd.error) return res.status(500).json({ error: 'Verification failed', details: upd.error.message });
+        return res.json({ tourist: upd.data });
     } catch (err) {
         return res.status(500).json({ error: 'Unexpected error', details: err.message });
     }

@@ -182,6 +182,7 @@ export default function PoliceDashboard() {
               <button style={{ ...styles.tabBtn, ...(activeTab === 'overview' ? styles.tabActive : {}) }} onClick={() => setActiveTab('overview')}>Overview</button>
               <button style={{ ...styles.tabBtn, ...(activeTab === 'map' ? styles.tabActive : {}) }} onClick={() => setActiveTab('map')}>Map</button>
               <button style={{ ...styles.tabBtn, ...(activeTab === 'history' ? styles.tabActive : {}) }} onClick={() => setActiveTab('history')}>History</button>
+              <a href="/report" style={{ ...styles.tabBtn, textDecoration: 'none' }}>Report</a>
             </div>
           </div>
         </header>

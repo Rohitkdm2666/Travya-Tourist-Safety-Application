@@ -1,12 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Navbar from './navbar'
 import { Connection, PublicKey, SystemProgram, Transaction } from '@solana/web3.js'
+import { supabase } from '../lib/supabase'
 
 export default function TouristRegistration({ onSuccess }) {
   const navigate = useNavigate()
   const [form, setForm] = useState({
-    fullName: '', email: '', phoneNo: '', nationality: '',
+    fullName: '', email: '', password: '', phoneNo: '', nationality: '',
     documentType: '', documentNo: '', registrationPoint: '', checkInDate: '', checkOutDate: ''
   })
   const [photo, setPhoto] = useState(null)
@@ -17,6 +18,23 @@ export default function TouristRegistration({ onSuccess }) {
   const [message, setMessage] = useState('')
   const [walletAddress, setWalletAddress] = useState('')
   
+  // Require auth and prefill email from Supabase session
+  useEffect(() => {
+    let mounted = true
+    async function load() {
+      const { data: { session } } = await supabase.auth.getSession()
+      const userEmail = session?.user?.email || ''
+      if (!userEmail) {
+        navigate('/signup')
+        return
+      }
+      if (mounted) {
+        setForm(prev => ({ ...prev, email: userEmail }))
+      }
+    }
+    load()
+    return () => { mounted = false }
+  }, [navigate])
 
   function updateField(e) {
     const { name, value } = e.target
@@ -134,7 +152,8 @@ export default function TouristRegistration({ onSuccess }) {
           <h3 className="text-xl font-semibold text-gray-900">Personal Information</h3>
           <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
             <input className="w-full rounded-lg bg-white px-3 py-2 text-gray-900 ring-1 ring-black/10 shadow-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-300" name="fullName" placeholder="Full Name" value={form.fullName} onChange={updateField} required />
-            <input className="w-full rounded-lg bg-white px-3 py-2 text-gray-900 ring-1 ring-black/10 shadow-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-300" name="email" type="email" placeholder="Email" value={form.email} onChange={updateField} required />
+            <input className="w-full rounded-lg bg-gray-100 px-3 py-2 text-gray-900 ring-1 ring-black/10 shadow-sm placeholder:text-gray-400 focus:outline-none" name="email" type="email" placeholder="Email" value={form.email} disabled readOnly required />
+            <input className="w-full rounded-lg bg-white px-3 py-2 text-gray-900 ring-1 ring-black/10 shadow-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-300" name="password" type="password" placeholder="Password" value={form.password} onChange={updateField} required />
             <input className="w-full rounded-lg bg-white px-3 py-2 text-gray-900 ring-1 ring-black/10 shadow-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-300" name="phoneNo" placeholder="Phone No" value={form.phoneNo} onChange={updateField} required />
             <input className="w-full rounded-lg bg-white px-3 py-2 text-gray-900 ring-1 ring-black/10 shadow-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-300" name="nationality" placeholder="Nationality" value={form.nationality} onChange={updateField} required />
             <div>

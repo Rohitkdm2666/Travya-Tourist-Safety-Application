@@ -40,6 +40,16 @@ export async function registerTourist(req, res) {
             return res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() });
         }
 
+        // Prevent duplicate registration by email
+        const existing = await supabase
+            .from('tourists')
+            .select('id')
+            .eq('email', parsed.data.email)
+            .maybeSingle();
+        if (existing?.data?.id) {
+            return res.status(409).json({ error: 'A tourist with this email is already registered' });
+        }
+
         const files = req.files || {};
         const photoFile = files.photo?.[0];
         const documentPhotoFile = files.documentPhoto?.[0];

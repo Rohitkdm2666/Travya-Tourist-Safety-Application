@@ -79,6 +79,7 @@ export default function PublicDashboard() {
             <button style={{ ...styles.tabBtn, ...(activeTab === 'alerts' ? styles.tabActive : {}) }} onClick={() => setActiveTab('alerts')}>Alerts</button>
             <button style={{ ...styles.tabBtn, ...(activeTab === 'map' ? styles.tabActive : {}) }} onClick={() => setActiveTab('map')}>Map</button>
             <button style={{ ...styles.tabBtn, ...(activeTab === 'history' ? styles.tabActive : {}) }} onClick={() => setActiveTab('history')}>History</button>
+            <a href="/report" style={{ ...styles.tabBtn, textDecoration: 'none' }}>Report</a>
           </div>
         </header>
 

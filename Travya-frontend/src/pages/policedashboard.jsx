@@ -39,7 +39,10 @@ export default function PoliceDashboard() {
   const [showEfirs, setShowEfirs] = useState(false);
   const [passportQuery, setPassportQuery] = useState('');
   const [lookup, setLookup] = useState({ loading: false, error: '', data: null });
-  const asBool = (v) => v === true || v === 'true' || v === 't' || v === 1 || v === '1';
+  const asBool = (v) => {
+    const s = String(v).trim().toLowerCase();
+    return s === 'true' || s === 't' || s === '1';
+  };
   const historyEvents = [
     { id: 'H-0901', name: 'Expired SOS - Neeraj', phone: '+91 98xxxxxx21', lat: 31.1049, lng: 77.1712, ts: Date.now() - 1000 * 60 * 60 * 5 },
     { id: 'H-0902', name: 'Expired SOS - Mira', phone: '+91 98xxxxxx22', lat: 31.1061, lng: 77.1744, ts: Date.now() - 1000 * 60 * 60 * 26 },
@@ -72,6 +75,10 @@ export default function PoliceDashboard() {
             id: t.id,
             name: t.fullname || t.name || 'Tourist',
             phone: t.phoneno || t.phone || '',
+            email: t.email,
+            nationality: t.nationality,
+            documenttype: t.documenttype,
+            registrationpoint: t.registrationpoint,
             wallet: t.wallet_address || '',
             lat,
             lng,
@@ -106,7 +113,7 @@ export default function PoliceDashboard() {
           const lat = bounds.minLat + fy * (bounds.maxLat - bounds.minLat);
           const lng = bounds.minLng + fx * (bounds.maxLng - bounds.minLng);
           const zone = ((hash >> 20) % 3) === 0 ? 'danger' : 'safe';
-          return { id: t.id, name: t.fullname || 'Tourist', phone: t.phoneno || '', lat, lng, zone, verified: asBool(t.verified), documentno: t.documentno };
+          return { id: t.id, name: t.fullname || 'Tourist', phone: t.phoneno || '', email: t.email, nationality: t.nationality, documenttype: t.documenttype, registrationpoint: t.registrationpoint, lat, lng, zone, verified: asBool(t.verified), documentno: t.documentno };
         });
         setTourists(mapped);
       } finally { setLoading(false); }
@@ -187,6 +194,9 @@ export default function PoliceDashboard() {
     setSelectedId(id);
     setActiveTab('map');
   };
+
+  const [showId, setShowId] = useState(false);
+  const [idTourist, setIdTourist] = useState(null);
 
   return (
     <div style={styles.page}>
@@ -292,8 +302,7 @@ export default function PoliceDashboard() {
                   <div style={{ ...styles.dot, background: t.skeleton ? '#E5E7EB' : (t.zone === 'danger' ? theme.colors.error : theme.colors.success) }} />
                   <div>
                     <div style={styles.cardTitle}>{t.name}</div>
-                    <div style={styles.cardSub}>ID: {t.id} • {t.phone}</div>
-                    {t.wallet && <div style={{ ...styles.cardSub, marginTop: 2 }}>Wallet: {t.wallet.slice(0, 6)}...{t.wallet.slice(-4)}</div>}
+                    {/* Hide personal details on dashboard card; moved to View ID modal */}
                   </div>
                 </div>
                 <div style={styles.coordsRow}>
@@ -309,7 +318,12 @@ export default function PoliceDashboard() {
                 {!t.skeleton && <div style={styles.zonePill(t.zone)}>{t.zone === 'danger' ? 'Protected/Restricted Zone' : 'Safe Zone'}</div>}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
                   <div style={{ fontSize: 12, color: theme.colors.textSecondary }}>📍 {Number(t.lat).toFixed(5)}, {Number(t.lng).toFixed(5)}</div>
-                  {!t.skeleton && <a href={`https://www.google.com/maps?q=${t.lat},${t.lng}`} target="_blank" rel="noreferrer" style={styles.linkBtn}>Open in Maps</a>}
+                  {!t.skeleton && (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <a href={`https://www.google.com/maps?q=${t.lat},${t.lng}`} target="_blank" rel="noreferrer" style={styles.linkBtn}>Open in Maps</a>
+                      <button style={styles.viewIdBtn} onClick={(e) => { e.stopPropagation(); setIdTourist(t); setShowId(true); }}>View ID</button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -347,7 +361,7 @@ export default function PoliceDashboard() {
                         const lat = bounds.minLat + fy * (bounds.maxLat - bounds.minLat);
                         const lng = bounds.minLng + fx * (bounds.maxLng - bounds.minLng);
                         const zone = ((hash >> 20) % 3) === 0 ? 'danger' : 'safe';
-                        return { id: t.id, name: t.fullname || 'Tourist', phone: t.phoneno || '', lat, lng, zone, verified: !!t.verified, documentno: t.documentno };
+                        return { id: t.id, name: t.fullname || 'Tourist', phone: t.phoneno || '', lat, lng, zone, verified: asBool(t.verified), documentno: t.documentno };
                       });
                       setTourists(mapped);
                     } finally { setLoading(false); }
@@ -433,17 +447,37 @@ export default function PoliceDashboard() {
                     <div style={{ ...styles.dot, background: theme.colors.warning }} />
                     <div>
                       <div style={styles.cardTitle}>{t.name}</div>
-                      <div style={styles.cardSub}>Passport: {t.documentno || '—'} • Phone: {t.phone || '—'}</div>
+                      <div style={styles.cardSub}>Passport: {t.documentno || '—'}</div>
                     </div>
                   </div>
-                  <div style={styles.coordsRow}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                     <div>
-                      <div style={styles.coordLabel}>Latitude</div>
-                      <div style={styles.coordValue}>{Number(t.lat).toFixed(6)}°</div>
+                      <div style={styles.coordLabel}>Email</div>
+                      <div style={styles.coordValue}>{t.email || '—'}</div>
                     </div>
                     <div>
-                      <div style={styles.coordLabel}>Longitude</div>
-                      <div style={styles.coordValue}>{Number(t.lng).toFixed(6)}°</div>
+                      <div style={styles.coordLabel}>Phone</div>
+                      <div style={styles.coordValue}>{t.phone || '—'}</div>
+                    </div>
+                    <div>
+                      <div style={styles.coordLabel}>Nationality</div>
+                      <div style={styles.coordValue}>{t.nationality || '—'}</div>
+                    </div>
+                    <div>
+                      <div style={styles.coordLabel}>Document Type</div>
+                      <div style={styles.coordValue}>{t.documenttype || '—'}</div>
+                    </div>
+                    <div>
+                      <div style={styles.coordLabel}>Registration Point</div>
+                      <div style={styles.coordValue}>{t.registrationpoint || '—'}</div>
+                    </div>
+                    <div>
+                      <div style={styles.coordLabel}>Check-in</div>
+                      <div style={styles.coordValue}>{t.checkindate ? String(t.checkindate).slice(0,10) : '—'}</div>
+                    </div>
+                    <div>
+                      <div style={styles.coordLabel}>Check-out</div>
+                      <div style={styles.coordValue}>{t.checkoutdate ? String(t.checkoutdate).slice(0,10) : '—'}</div>
                     </div>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
@@ -582,6 +616,58 @@ export default function PoliceDashboard() {
           </div>
         )}
       </div>
+      {showId && idTourist && (
+        <div style={styles.modalBackdrop} onClick={() => setShowId(false)}>
+          <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <div style={{ fontWeight: 800 }}>Government Verified ID</div>
+              <button onClick={() => setShowId(false)} style={styles.closeBtn}>✕</button>
+            </div>
+            <div style={styles.modalBody}>
+              <div style={styles.idBadgeRow}>
+                <div style={styles.govBadge}>🇮🇳 Govt. of India</div>
+                <div style={styles.idMeta}>Tourist ID • Verified</div>
+              </div>
+              <div style={styles.idRow}>
+                <div style={styles.idLabel}>Name</div>
+                <div style={styles.idValue}>{idTourist.name}</div>
+              </div>
+              <div style={styles.idRow}>
+                <div style={styles.idLabel}>Passport</div>
+                <div style={styles.idValue}>{idTourist.documentno}</div>
+              </div>
+              <div style={styles.idRow}>
+                <div style={styles.idLabel}>Nationality</div>
+                <div style={styles.idValue}>{idTourist.nationality || '—'}</div>
+              </div>
+              <div style={styles.idRow}>
+                <div style={styles.idLabel}>Email</div>
+                <div style={styles.idValue}>{idTourist.email || '—'}</div>
+              </div>
+              <div style={styles.idRow}>
+                <div style={styles.idLabel}>Phone</div>
+                <div style={styles.idValue}>{idTourist.phone || '—'}</div>
+              </div>
+              <div style={styles.idRow}>
+                <div style={styles.idLabel}>Document</div>
+                <div style={styles.idValue}>{idTourist.documenttype || '—'}</div>
+              </div>
+              <div style={styles.idRow}>
+                <div style={styles.idLabel}>Registration Point</div>
+                <div style={styles.idValue}>{idTourist.registrationpoint || '—'}</div>
+              </div>
+              <div style={styles.idRow}>
+                <div style={styles.idLabel}>Check-in</div>
+                <div style={styles.idValue}>{idTourist.checkindate ? String(idTourist.checkindate).slice(0,10) : '—'}</div>
+              </div>
+              <div style={styles.idRow}>
+                <div style={styles.idLabel}>Check-out</div>
+                <div style={styles.idValue}>{idTourist.checkoutdate ? String(idTourist.checkoutdate).slice(0,10) : '—'}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -670,6 +756,7 @@ const styles = {
   zonePill: (zone) => ({ marginTop: 12, display: 'inline-block', padding: '6px 10px', borderRadius: 999, background: zone === 'danger' ? 'rgba(239,68,68,0.12)' : 'rgba(22,163,74,0.12)', color: zone === 'danger' ? theme.colors.error : theme.colors.success, fontSize: 12, fontWeight: 600 }),
   statusPill: (status) => ({ padding: '6px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700, color: status === 'closed' ? theme.colors.success : '#B45309', background: status === 'closed' ? 'rgba(22,163,74,0.12)' : 'rgba(245,158,11,0.12)', border: `1px solid ${status === 'closed' ? '#86efac' : '#fde68a'}` }),
   glassBtn: { padding: '10px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.55)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.7)', boxShadow: '0 6px 18px rgba(37,99,235,0.15)', color: theme.colors.text, cursor: 'pointer' },
+  viewIdBtn: { padding: '8px 12px', borderRadius: 10, border: '1px solid #2563EB22', background: '#fff', color: theme.colors.text, cursor: 'pointer' },
 
   mapCard: { background: '#fff', border: '1px solid #E6EAF2', borderRadius: 16, overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.06)' },
   mapHeader: { padding: theme.spacing.md, borderBottom: '1px solid #E6EAF2', fontWeight: 700 },
@@ -678,5 +765,16 @@ const styles = {
   legendRow: { display: 'flex', gap: 16, alignItems: 'center', padding: theme.spacing.md },
   legendItem: { display: 'flex', alignItems: 'center', gap: 8, color: theme.colors.textSecondary },
   legendDot: { width: 12, height: 12, borderRadius: 999, display: 'inline-block' },
+  modalBackdrop: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 },
+  modalCard: { width: 'min(92vw, 560px)', background: '#fff', borderRadius: 16, boxShadow: '0 24px 60px rgba(0,0,0,0.25)', overflow: 'hidden', border: '1px solid #E6EAF2' },
+  modalHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderBottom: '1px solid #E6EAF2' },
+  closeBtn: { border: 'none', background: 'transparent', fontSize: 18, cursor: 'pointer' },
+  modalBody: { padding: 16 },
+  idBadgeRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  govBadge: { padding: '6px 10px', borderRadius: 999, background: '#EFF6FF', color: '#1D4ED8', fontWeight: 700, fontSize: 12 },
+  idMeta: { fontSize: 12, color: theme.colors.textSecondary },
+  idRow: { display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, padding: '8px 0', borderBottom: '1px dashed #E6EAF2' },
+  idLabel: { fontSize: 12, color: theme.colors.textSecondary },
+  idValue: { fontWeight: 600 }
 };
 

@@ -79,6 +79,8 @@ export async function registerTourist(req, res) {
             documentPhotoUrl = publicUrl.publicUrl;
         }
 
+
+
         // Insert record into Supabase table
         // Your CREATE TABLE used unquoted identifiers. Postgres lowercases them.
         // So the actual column names are lowercase with no camelCase:
@@ -96,7 +98,8 @@ export async function registerTourist(req, res) {
             checkindate: String(parsed.data.checkInDate).slice(0, 10),
             checkoutdate: String(parsed.data.checkOutDate).slice(0, 10),
             emergencycontacts: parsed.data.emergencyContacts,
-            travelitinerary: parsed.data.travelItinerary
+            travelitinerary: parsed.data.travelItinerary,
+            verified: false
         };
 
         let insertRes = await supabase
@@ -128,7 +131,7 @@ export async function listTourists(req, res) {
     try {
         let query = supabase
             .from('tourists')
-            .select('id, created_at, fullname, email, phoneno, nationality, checkindate, checkoutdate, photo')
+            .select('id, created_at, fullname, email, phoneno, nationality, checkindate, checkoutdate, photo, documentno, documenttype, registrationpoint, verified')
             .order('created_at', { ascending: false });
         let { data, error } = await query;
         if (error) {
@@ -214,7 +217,7 @@ export async function verifyTouristByPassport(req, res) {
         if (idFromBody) {
             const upd = await supabase
                 .from('tourists')
-                .update({ verified: 'true' })
+                .update({ verified: true })
                 .eq('id', idFromBody)
                 .select('id, fullname, documentno, verified')
                 .single();
@@ -257,7 +260,7 @@ export async function verifyTouristByPassport(req, res) {
         const id = find.data.id;
         const upd = await supabase
             .from('tourists')
-            .update({ verified: 'true' })
+            .update({ verified: true })
             .eq('id', id)
             .select('id, fullname, documentno, verified')
             .single();
